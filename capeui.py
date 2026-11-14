@@ -3,11 +3,10 @@
 
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
+import os
 
 
 def _parent_widget(parent):
-    """Resolve a parent dict to a Tk widget. Accepts either an app dict
-    (has _root) or a container/widget dict (has _widget)."""
     if "_widget" in parent:
         return parent["_widget"]
     if "_root" in parent:
@@ -19,12 +18,34 @@ def _parent_widget(parent):
 # App / window
 # ============================================================
 
-def app(title, w=800, h=600):
+def app(title, w=800, h=600, icon=None):
     root = tk.Tk()
     root.title(str(title))
     root.geometry(str(int(w)) + "x" + str(int(h)))
     root.minsize(320, 200)
+    if icon:
+        try:
+            if str(icon).lower().endswith(".ico"):
+                root.iconbitmap(str(icon))
+            else:
+                img = tk.PhotoImage(file=str(icon))
+                root.iconphoto(True, img)
+                root._icon_img = img  # keep reference
+        except Exception as e:
+            print("icon error:", e)
     return {"_root": root, "_w": int(w), "_h": int(h)}
+
+
+def set_icon(a, path):
+    try:
+        if str(path).lower().endswith(".ico"):
+            a["_root"].iconbitmap(str(path))
+        else:
+            img = tk.PhotoImage(file=str(path))
+            a["_root"].iconphoto(True, img)
+            a["_root"]._icon_img = img
+    except Exception as e:
+        print("icon error:", e)
 
 
 def run(a):
@@ -51,29 +72,111 @@ def on_close(a, handler):
 
 
 # ============================================================
+# Menu bar
+# ============================================================
+
+def menubar(a):
+    """Create a menu bar. Call menu() on the result to add menus."""
+    m = tk.Menu(a["_root"])
+    a["_root"].config(menu=m)
+    return {"_widget": m, "_kind": "menubar", "_app": a}
+
+
+def menu(bar, label):
+    """Add a menu (File, Edit, ...) to the menu bar. Returns the menu dict
+    that menu_item() should be called on."""
+    m = tk.Menu(bar["_widget"], tearoff=0)
+    bar["_widget"].add_cascade(label=str(label), menu=m)
+    return {"_widget": m, "_kind": "menu"}
+
+
+def menu_item(m, label, handler, accelerator=""):
+    """Add a clickable item to a menu. `accelerator` is just the displayed
+    shortcut text — actual key bindings still go through bind_key()."""
+    def cb():
+        try:
+            handler()
+        except Exception as e:
+            print("menu item error:", e)
+    if accelerator:
+        m["_widget"].add_command(label=str(label), command=cb,
+                                  accelerator=str(accelerator))
+    else:
+        m["_widget"].add_command(label=str(label), command=cb)
+
+
+def menu_separator(m):
+    m["_widget"].add_separator()
+
+
+def menu_check(m, label, var_holder, handler):
+    """Checkbox menu item. var_holder is a dict {"v": bool}."""
+    if "v" not in var_holder:
+        var_holder["v"] = tk.BooleanVar(value=False)
+    def cb():
+        try:
+            handler(bool(var_holder["v"].get()))
+        except Exception as e:
+            print("menu check error:", e)
+    m["_widget"].add_checkbutton(label=str(label),
+                                  variable=var_holder["v"], command=cb)
+
+
+def menu_radio(m, label, value, var_holder, handler):
+    """Radio menu item. Multiple radio items in the same menu share a
+    var_holder dict."""
+    if "v" not in var_holder:
+        var_holder["v"] = tk.StringVar(value=str(value))
+    def cb():
+        try:
+            handler(str(var_holder["v"].get()))
+        except Exception as e:
+            print("menu radio error:", e)
+    m["_widget"].add_radiobutton(label=str(label), value=str(value),
+                                  variable=var_holder["v"], command=cb)
+
+
+# ============================================================
 # Layout containers
 # ============================================================
 
-def row(parent):
+def row(parent, padx=8, pady=4, fill="x"):
     frame = tk.Frame(_parent_widget(parent))
-    frame.pack(fill="x", padx=8, pady=4)
+    frame.pack(fill=fill, padx=int(padx), pady=int(pady))
     return {"_widget": frame, "_kind": "row"}
 
 
-def col(parent):
+def col(parent, padx=8, pady=4, expand=True):
     frame = tk.Frame(_parent_widget(parent))
-    frame.pack(fill="both", expand=True, padx=8, pady=4)
+    frame.pack(fill="both" if expand else "x", expand=bool(expand),
+               padx=int(padx), pady=int(pady))
     return {"_widget": frame, "_kind": "col"}
 
 
-def grid(parent, rows, cols):
-    frame = tk.Frame(_parent_widget(parent))
-    frame.pack(fill="both", expand=True, padx=8, pady=4)
-    for r in range(int(rows)):
-        frame.rowconfigure(r, weight=1)
-    for c in range(int(cols)):
-        frame.columnconfigure(c, weight=1)
-    return {"_widget": frame, "_kind": "grid", "_rows": int(rows), "_cols": int(cols)}
+def pane(parent, orient="horizontal"):
+    """Split pane. orient is "horizontal" (side by side) or
+    "vertical" (top/bottom). Add children with pane_add()."""
+    paned = tk.PanedWindow(_parent_widget(parent),
+                            orient=str(orient),
+                            sashwidth=6, sashrelief="flat", bd=0)
+    paned.pack(fill="both", expand=True, padx=4, pady=4)
+    return {"_widget": paned, "_kind": "pane", "_orient": str(orient)}
+
+
+def pane_add(pane, container, weight=1):
+    """Add a container (row, col, text_area, ...) to a pane."""
+    pane["_widget"].add(container["_widget"], stretch="always",
+                          minsize=60)
+
+
+def sidebar(parent, width=220):
+    """Fixed-width container for a sidebar. Place it with pack(side='left')
+    from the caller's perspective — or use it as a child of a horizontal
+    pane."""
+    frame = tk.Frame(_parent_widget(parent), width=int(width))
+    frame.pack(side="left", fill="y", padx=4, pady=4)
+    frame.pack_propagate(False)
+    return {"_widget": frame, "_kind": "sidebar", "_width": int(width)}
 
 
 def spacer(parent, px=8):
@@ -89,16 +192,16 @@ def separator(parent):
 
 
 # ============================================================
-# Basic widgets
+# Widgets
 # ============================================================
 
-def label(parent, text=""):
-    w = tk.Label(_parent_widget(parent), text=str(text), anchor="w")
-    w.pack(fill="x", padx=8, pady=2)
+def label(parent, text="", anchor="w", fill="x", padx=8, pady=2):
+    w = tk.Label(_parent_widget(parent), text=str(text), anchor=str(anchor))
+    w.pack(fill=str(fill), padx=int(padx), pady=int(pady))
     return {"_widget": w, "_kind": "label"}
 
 
-def button(parent, text, on_click=None):
+def button(parent, text, on_click=None, side=None, padx=2, pady=2):
     def cb():
         try:
             if on_click is not None:
@@ -106,7 +209,10 @@ def button(parent, text, on_click=None):
         except Exception as e:
             print("button error:", e)
     w = tk.Button(_parent_widget(parent), text=str(text), command=cb)
-    w.pack(fill="x", padx=8, pady=2)
+    if side:
+        w.pack(side=str(side), padx=int(padx), pady=int(pady))
+    else:
+        w.pack(fill="x", padx=int(padx), pady=int(pady))
     return {"_widget": w, "_kind": "button"}
 
 
@@ -122,6 +228,18 @@ def text_area(parent, height=10):
     w = tk.Text(_parent_widget(parent), height=int(height))
     w.pack(fill="both", expand=True, padx=8, pady=2)
     return {"_widget": w, "_kind": "text"}
+
+
+def text_area_scrolled(parent):
+    """Text area with a vertical scrollbar."""
+    frame = tk.Frame(_parent_widget(parent))
+    frame.pack(fill="both", expand=True, padx=8, pady=2)
+    w = tk.Text(frame)
+    sb = ttk.Scrollbar(frame, orient="vertical", command=w.yview)
+    w.configure(yscrollcommand=sb.set)
+    w.pack(side="left", fill="both", expand=True)
+    sb.pack(side="right", fill="y")
+    return {"_widget": w, "_kind": "text", "_frame": frame, "_scroll": sb}
 
 
 def checkbox(parent, text, on_change=None):
@@ -196,8 +314,10 @@ def progress(parent):
     return {"_widget": w, "_kind": "progress"}
 
 
-def listbox(parent, items=None, on_select=None):
-    w = tk.Listbox(_parent_widget(parent))
+def listbox(parent, items=None, on_select=None, height=8):
+    frame = tk.Frame(_parent_widget(parent))
+    frame.pack(fill="both", expand=True, padx=8, pady=2)
+    w = tk.Listbox(frame, height=int(height))
     if items:
         for i in items:
             w.insert("end", str(i))
@@ -210,7 +330,10 @@ def listbox(parent, items=None, on_select=None):
                 except Exception as e:
                     print("listbox select error:", e)
         w.bind("<<ListboxSelect>>", cb)
-    w.pack(fill="both", expand=True, padx=8, pady=2)
+    sb = ttk.Scrollbar(frame, orient="vertical", command=w.yview)
+    w.configure(yscrollcommand=sb.set)
+    w.pack(side="left", fill="both", expand=True)
+    sb.pack(side="right", fill="y")
     return {"_widget": w, "_kind": "listbox"}
 
 
@@ -385,10 +508,6 @@ def open_folder(parent, title="Open folder"):
 
 def bind_key(a, key, handler):
     a["_root"].bind(str(key), lambda e: handler())
-
-
-def bind_key_event(a, key, handler):
-    a["_root"].bind(str(key), lambda e: handler(e.keysym))
 
 
 def after(a, ms, handler):
