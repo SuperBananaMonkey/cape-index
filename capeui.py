@@ -1,24 +1,18 @@
 # -*- coding: utf-8 -*-
-"""CapeUI - a Tkinter GUI toolkit for Kadis programs, distributed via Cape.
-
-Usage from Kadis:
-
-    require capeui;
-
-    func main() -> void {
-        var app = capeui.app("My App", 800, 600);
-        var row = capeui.row(app);
-        capeui.label(row, "Name:");
-        var name = capeui.entry(row, "type here");
-        capeui.button(row, "Submit", func() -> void {
-            capeui.alert(app, "Hello, " + capeui.get_text(name));
-        });
-        capeui.run(app);
-    }
-"""
+"""CapeUI - a Tkinter GUI toolkit for Kadis programs, distributed via Cape."""
 
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
+
+
+def _parent_widget(parent):
+    """Resolve a parent dict to a Tk widget. Accepts either an app dict
+    (has _root) or a container/widget dict (has _widget)."""
+    if "_widget" in parent:
+        return parent["_widget"]
+    if "_root" in parent:
+        return parent["_root"]
+    raise ValueError("capeui: parent must have _widget or _root")
 
 
 # ============================================================
@@ -61,22 +55,19 @@ def on_close(a, handler):
 # ============================================================
 
 def row(parent):
-    """Horizontal container. Returns a dict that widgets can be added to."""
-    frame = tk.Frame(parent["_root"] if "_root" in parent else parent["_widget"])
+    frame = tk.Frame(_parent_widget(parent))
     frame.pack(fill="x", padx=8, pady=4)
     return {"_widget": frame, "_kind": "row"}
 
 
 def col(parent):
-    """Vertical container (same as a normal frame, stacked vertically)."""
-    frame = tk.Frame(parent["_root"] if "_root" in parent else parent["_widget"])
+    frame = tk.Frame(_parent_widget(parent))
     frame.pack(fill="both", expand=True, padx=8, pady=4)
     return {"_widget": frame, "_kind": "col"}
 
 
 def grid(parent, rows, cols):
-    """Grid container. Returns a grid dict you place widgets into."""
-    frame = tk.Frame(parent["_root"] if "_root" in parent else parent["_widget"])
+    frame = tk.Frame(_parent_widget(parent))
     frame.pack(fill="both", expand=True, padx=8, pady=4)
     for r in range(int(rows)):
         frame.rowconfigure(r, weight=1)
@@ -86,13 +77,13 @@ def grid(parent, rows, cols):
 
 
 def spacer(parent, px=8):
-    f = tk.Frame(parent["_widget"], height=int(px))
+    f = tk.Frame(_parent_widget(parent), height=int(px))
     f.pack(fill="x")
     return {"_widget": f, "_kind": "spacer"}
 
 
 def separator(parent):
-    f = ttk.Separator(parent["_widget"], orient="horizontal")
+    f = ttk.Separator(_parent_widget(parent), orient="horizontal")
     f.pack(fill="x", padx=8, pady=8)
     return {"_widget": f, "_kind": "separator"}
 
@@ -102,7 +93,7 @@ def separator(parent):
 # ============================================================
 
 def label(parent, text=""):
-    w = tk.Label(parent["_widget"], text=str(text), anchor="w")
+    w = tk.Label(_parent_widget(parent), text=str(text), anchor="w")
     w.pack(fill="x", padx=8, pady=2)
     return {"_widget": w, "_kind": "label"}
 
@@ -114,13 +105,13 @@ def button(parent, text, on_click=None):
                 on_click()
         except Exception as e:
             print("button error:", e)
-    w = tk.Button(parent["_widget"], text=str(text), command=cb)
+    w = tk.Button(_parent_widget(parent), text=str(text), command=cb)
     w.pack(fill="x", padx=8, pady=2)
     return {"_widget": w, "_kind": "button"}
 
 
 def entry(parent, placeholder=""):
-    w = tk.Entry(parent["_widget"])
+    w = tk.Entry(_parent_widget(parent))
     if placeholder:
         w.insert(0, str(placeholder))
     w.pack(fill="x", padx=8, pady=2)
@@ -128,7 +119,7 @@ def entry(parent, placeholder=""):
 
 
 def text_area(parent, height=10):
-    w = tk.Text(parent["_widget"], height=int(height))
+    w = tk.Text(_parent_widget(parent), height=int(height))
     w.pack(fill="both", expand=True, padx=8, pady=2)
     return {"_widget": w, "_kind": "text"}
 
@@ -141,7 +132,8 @@ def checkbox(parent, text, on_change=None):
                 on_change(bool(var.get()))
         except Exception as e:
             print("checkbox error:", e)
-    w = tk.Checkbutton(parent["_widget"], text=str(text), variable=var, command=cb)
+    w = tk.Checkbutton(_parent_widget(parent), text=str(text),
+                        variable=var, command=cb)
     w.pack(anchor="w", padx=8, pady=2)
     return {"_widget": w, "_var": var, "_kind": "checkbox"}
 
@@ -150,7 +142,7 @@ def radio_group(parent, options, on_change=None):
     var = tk.StringVar()
     if options:
         var.set(str(options[0]))
-    frame = tk.Frame(parent["_widget"])
+    frame = tk.Frame(_parent_widget(parent))
     frame.pack(fill="x", padx=8, pady=2)
     widgets = []
     for opt in options:
@@ -177,7 +169,7 @@ def dropdown(parent, options, on_change=None):
                 on_change(str(var.get()))
         except Exception as e:
             print("dropdown error:", e)
-    w = ttk.Combobox(parent["_widget"], textvariable=var,
+    w = ttk.Combobox(_parent_widget(parent), textvariable=var,
                       values=[str(o) for o in options], state="readonly")
     w.bind("<<ComboboxSelected>>", cb)
     w.pack(fill="x", padx=8, pady=2)
@@ -192,20 +184,20 @@ def slider(parent, lo=0, hi=100, init=50, on_change=None):
                 on_change(float(var.get()))
         except Exception as e:
             print("slider error:", e)
-    w = tk.Scale(parent["_widget"], from_=float(lo), to=float(hi),
+    w = tk.Scale(_parent_widget(parent), from_=float(lo), to=float(hi),
                   orient="horizontal", variable=var, command=cb)
     w.pack(fill="x", padx=8, pady=2)
     return {"_widget": w, "_var": var, "_kind": "slider"}
 
 
 def progress(parent):
-    w = ttk.Progressbar(parent["_widget"], mode="determinate", maximum=100)
+    w = ttk.Progressbar(_parent_widget(parent), mode="determinate", maximum=100)
     w.pack(fill="x", padx=8, pady=2)
     return {"_widget": w, "_kind": "progress"}
 
 
 def listbox(parent, items=None, on_select=None):
-    w = tk.Listbox(parent["_widget"])
+    w = tk.Listbox(_parent_widget(parent))
     if items:
         for i in items:
             w.insert("end", str(i))
@@ -223,9 +215,7 @@ def listbox(parent, items=None, on_select=None):
 
 
 def table(parent, columns, rows=None):
-    """Read-only-ish table view. `columns` is a list of header strings;
-    `rows` is a list of lists."""
-    frame = tk.Frame(parent["_widget"])
+    frame = tk.Frame(_parent_widget(parent))
     frame.pack(fill="both", expand=True, padx=8, pady=2)
     tree = ttk.Treeview(frame, columns=[str(c) for c in columns],
                           show="headings", height=12)
@@ -398,7 +388,6 @@ def bind_key(a, key, handler):
 
 
 def bind_key_event(a, key, handler):
-    """Handler receives the keysym string (e.g. 'Return', 'Escape')."""
     a["_root"].bind(str(key), lambda e: handler(e.keysym))
 
 
